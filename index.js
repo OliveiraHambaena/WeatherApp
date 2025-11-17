@@ -1,8 +1,8 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Configuration
-    const API_KEY = 'fySh7TZvcdYHOGr94wydR4p1vVoAeA0w';
-    const BASE_URL = 'https://dataservice.accuweather.com';
-    const DAILY_LIMIT = 50;
+    const API_KEY = '9407acbb76e148968dc90119251711';
+    const BASE_URL = 'http://api.weatherapi.com/v1';
+    const DAILY_LIMIT = 100;
     const CACHE_EXPIRY = 30 * 60 * 1000; // 30 minutes
     
     // DOM Elements
@@ -21,18 +21,56 @@ document.addEventListener('DOMContentLoaded', function() {
     const apiCounter = document.querySelector('.api-counter');
     const cacheNotice = document.querySelector('.cache-notice');
 
-    // Weather icon mapping
+    // Weather icon mapping (WeatherAPI.com condition codes)
     const weatherIconMap = {
-        1: 'clear.png', 2: 'clear.png',   // Sunny
-        3: 'cloud.png', 4: 'cloud.png',   // Partly Cloudy
-        5: 'cloud.png', 6: 'cloud.png',   // Mostly Cloudy
-        7: 'cloud.png', 8: 'cloud.png',   // Cloudy
-        11: 'mist.png', 32: 'mist.png',   // Fog
-        12: 'rain.png', 13: 'rain.png',   // Showers
-        14: 'rain.png', 18: 'rain.png',   // Rain
-        15: 'rain.png', 16: 'rain.png',   // Thunderstorms
-        22: 'snow.png', 23: 'snow.png',  // Snow
-        29: 'snow.png'                   // Rain and Snow
+        1000: 'clear.png',      // Sunny/Clear
+        1003: 'cloud.png',      // Partly cloudy
+        1006: 'cloud.png',      // Cloudy
+        1009: 'cloud.png',      // Overcast
+        1030: 'mist.png',       // Mist
+        1063: 'rain.png',       // Patchy rain possible
+        1066: 'snow.png',       // Patchy snow possible
+        1069: 'snow.png',       // Patchy sleet possible
+        1072: 'rain.png',       // Patchy freezing drizzle
+        1087: 'rain.png',       // Thundery outbreaks possible
+        1114: 'snow.png',       // Blowing snow
+        1117: 'snow.png',       // Blizzard
+        1135: 'mist.png',       // Fog
+        1147: 'mist.png',       // Freezing fog
+        1150: 'rain.png',       // Patchy light drizzle
+        1153: 'rain.png',       // Light drizzle
+        1168: 'rain.png',       // Freezing drizzle
+        1171: 'rain.png',       // Heavy freezing drizzle
+        1180: 'rain.png',       // Patchy light rain
+        1183: 'rain.png',       // Light rain
+        1186: 'rain.png',       // Moderate rain at times
+        1189: 'rain.png',       // Moderate rain
+        1192: 'rain.png',       // Heavy rain at times
+        1195: 'rain.png',       // Heavy rain
+        1198: 'rain.png',       // Light freezing rain
+        1201: 'rain.png',       // Moderate or heavy freezing rain
+        1204: 'snow.png',       // Light sleet
+        1207: 'snow.png',       // Moderate or heavy sleet
+        1210: 'snow.png',       // Patchy light snow
+        1213: 'snow.png',       // Light snow
+        1216: 'snow.png',       // Patchy moderate snow
+        1219: 'snow.png',       // Moderate snow
+        1222: 'snow.png',       // Patchy heavy snow
+        1225: 'snow.png',       // Heavy snow
+        1237: 'snow.png',       // Ice pellets
+        1240: 'rain.png',       // Light rain shower
+        1243: 'rain.png',       // Moderate or heavy rain shower
+        1246: 'rain.png',       // Torrential rain shower
+        1249: 'snow.png',       // Light sleet showers
+        1252: 'snow.png',       // Moderate or heavy sleet showers
+        1255: 'snow.png',       // Light snow showers
+        1258: 'snow.png',       // Moderate or heavy snow showers
+        1261: 'snow.png',       // Light showers of ice pellets
+        1264: 'snow.png',       // Moderate or heavy showers of ice pellets
+        1273: 'rain.png',       // Patchy light rain with thunder
+        1276: 'rain.png',       // Moderate or heavy rain with thunder
+        1279: 'snow.png',       // Patchy light snow with thunder
+        1282: 'snow.png'        // Moderate or heavy snow with thunder
     };
 
     // State management
@@ -115,6 +153,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!response.ok) throw new Error(`API_ERROR_${response.status}`);
             
             const data = await response.json();
+            
+            // Check for API error in response
+            if (data.error) {
+                throw new Error(`API_ERROR_${data.error.code}`);
+            }
+            
             apiCallsToday++;
             updateCounter();
             saveState();
@@ -133,7 +177,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function fetchSuggestions(query) {
         try {
             const data = await fetchWithLimit(
-                `${BASE_URL}/locations/v1/cities/autocomplete?apikey=${API_KEY}&q=${query}&language=en-us`,
+                `${BASE_URL}/search.json?key=${API_KEY}&q=${encodeURIComponent(query)}`,
                 `autocomplete_${query}`
             );
             showSuggestions(data);
@@ -144,26 +188,28 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Show suggestions dropdown
-    async function showSuggestions(cities) {
+    function showSuggestions(cities) {
         suggestionsBox.innerHTML = '';
-        if (!cities || cities.length === 0) return;
+        if (!cities || cities.length === 0) {
+            suggestionsBox.style.display = 'none';
+            return;
+        }
 
         cities.slice(0, 5).forEach(city => {
             const suggestion = document.createElement('div');
             suggestion.className = 'suggestion';
             suggestion.innerHTML = `
-                <strong>${city.LocalizedName}</strong>
-                <span>${city.AdministrativeArea.LocalizedName}, ${city.Country.LocalizedName}</span>
+                <strong>${city.name}</strong>
+                <span>${city.region}, ${city.country}</span>
             `;
             suggestion.addEventListener('click', async () => {
-                searchInput.value = city.LocalizedName;
+                searchInput.value = city.name;
                 suggestionsBox.style.display = 'none';
 
                 try {
-                    const weatherData = await fetchWeather(city.Key);
-                    updateWeatherUI(weatherData[0], city.LocalizedName);
+                    await fetchWeather(city.name);
                 } catch (error) {
-                    handleWeatherError(error, city.Key);
+                    handleWeatherError(error, city.name);
                 }
             });
             suggestionsBox.appendChild(suggestion);
@@ -172,31 +218,45 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Fetch weather data
-    async function fetchWeather(locationKey, cityName) {
+    async function fetchWeather(cityName) {
         try {
             setLoadingState(true);
             
-            const [weatherData] = await fetchWithLimit(
-                `${BASE_URL}/currentconditions/v1/${locationKey}?apikey=${API_KEY}&language=en-us&details=true`,
-                `weather_${locationKey}`
+            const weatherData = await fetchWithLimit(
+                `${BASE_URL}/current.json?key=${API_KEY}&q=${encodeURIComponent(cityName)}&aqi=no`,
+                `weather_${cityName}`
             );
             
             updateWeatherUI(weatherData, cityName);
         } catch (error) {
-            handleWeatherError(error, locationKey);
+            handleWeatherError(error, cityName);
         } finally {
             setLoadingState(false);
         }
     }
 
     // Update UI with weather data
-    function updateWeatherUI(weather, cityName) {
-        weatherIcon.src = `images/${weatherIconMap[weather.WeatherIcon] || 'cloud.png'}`;
-        temperature.innerHTML = `${Math.round(weather.Temperature.Metric.Value)}<span>°C</span>`;
-        description.textContent = weather.WeatherText;
-        humidityValue.textContent = `${weather.RelativeHumidity || 'N/A'}%`;
-        windValue.textContent = `${Math.round(weather.Wind.Speed.Metric.Value)} km/h`;
+    function updateWeatherUI(data, cityName) {
+        const weather = data.current;
+        const location = data.location;
         
+        // Set weather icon based on condition code
+        const iconPath = weatherIconMap[weather.condition.code] || 'cloud.png';
+        weatherIcon.src = `images/${iconPath}`;
+        
+        // Set temperature
+        temperature.innerHTML = `${Math.round(weather.temp_c)}<span>°C</span>`;
+        
+        // Set description
+        description.textContent = weather.condition.text;
+        
+        // Set humidity
+        humidityValue.textContent = `${weather.humidity}%`;
+        
+        // Set wind speed
+        windValue.textContent = `${Math.round(weather.wind_kph)} km/h`;
+        
+        // Show weather elements
         weatherBox.style.display = '';
         weatherDetails.style.display = '';
         error404.style.display = 'none';
@@ -207,7 +267,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Error handling
-    function handleWeatherError(error, locationKey) {
+    function handleWeatherError(error, cityName) {
         let message = 'An error occurred';
         let showCached = true;
         
@@ -215,24 +275,32 @@ document.addEventListener('DOMContentLoaded', function() {
             message = 'Daily API limit reached (50 calls)';
             showCached = true;
         } 
-        else if (error.message.includes('API_ERROR_401')) {
+        else if (error.message.includes('API_ERROR_2006')) {
             message = 'Invalid API key';
             showCached = false;
         }
-        else if (error.message.includes('API_ERROR_404')) {
+        else if (error.message.includes('API_ERROR_1006') || error.message.includes('API_ERROR_400')) {
             message = 'Location not found';
             showCached = false;
         }
+        else if (error.message.includes('API_ERROR_2007')) {
+            message = 'API quota exceeded';
+            showCached = true;
+        }
+        else if (error.message.includes('API_ERROR_2008')) {
+            message = 'API key disabled';
+            showCached = false;
+        }
         else {
-            message = 'Network error';
+            message = 'Network error or invalid request';
             showCached = true;
         }
         
         // Try to show cached data if available
-        if (showCached) {
-            const cached = cache.get(`weather_${locationKey}`);
+        if (showCached && cityName) {
+            const cached = cache.get(`weather_${cityName}`);
             if (cached) {
-                updateWeatherUI(cached[0], searchInput.value);
+                updateWeatherUI(cached, cityName);
                 cacheNotice.textContent = "Showing cached data";
                 return;
             }
@@ -275,20 +343,9 @@ document.addEventListener('DOMContentLoaded', function() {
         suggestionsBox.style.display = 'none';
 
         try {
-            // First try to get location key
-            const cities = await fetchWithLimit(
-                `${BASE_URL}/locations/v1/cities/search?apikey=${API_KEY}&q=${city}&language=en-us`,
-                `search_${city}`
-            );
-
-            if (cities && cities.length > 0) {
-                const weatherData = await fetchWeather(cities[0].Key);
-                updateWeatherUI(weatherData[0], cities[0].LocalizedName);
-            } else {
-                throw new Error('Location not found');
-            }
+            await fetchWeather(city);
         } catch (error) {
-            handleWeatherError(error, '');
+            handleWeatherError(error, city);
         }
     });
 
