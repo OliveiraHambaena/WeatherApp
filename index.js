@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Configuration
     const API_KEY = '9407acbb76e148968dc90119251711';
     const BASE_URL = 'http://api.weatherapi.com/v1';
-    const DAILY_LIMIT = 100;
+    const DAILY_LIMIT = 1000;
     const CACHE_EXPIRY = 30 * 60 * 1000; // 30 minutes
     
     // DOM Elements
